@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>How long to get there (with conventional transport)?</title>
+<style>
+:root{--bg:#0b1020;--card:#121a33;--ink:#e9edf8;--muted:#a9b3cf;--accent:#7aa2ff;--accent-2:#53e0c4;--bad:#ff8a7a}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Inter,Arial;color:var(--ink);background:radial-gradient(1200px 800px at 80% -10%,#1b2655 0,transparent 60%),radial-gradient(1000px 800px at -10% 120%,#0f1a44 0,transparent 60%),var(--bg)}
+.wrap{max-width:1000px;margin:32px auto;padding:16px}
+header{margin-bottom:18px}
+h1{font-size:clamp(1.3rem,2.5vw,1.8rem);margin:0 0 6px}
+p.lead{margin:0;color:var(--muted)}
+.card{background:linear-gradient(180deg,#121a33,#0e1630);border:1px solid #24305c;border-radius:14px;padding:18px;margin:16px 0;box-shadow:0 10px 30px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.02)}
+label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:6px}
+input,select,button,textarea{width:100%;padding:12px 12px;border-radius:10px;border:1px solid #2a376a;background:#0b1330;color:var(--ink);outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+button{cursor:pointer}
+.row{display:grid;gap:12px}
+@media(min-width:720px){.row-2{grid-template-columns:1fr 1fr}.row-3{grid-template-columns:2fr 1fr 1fr}}
+.inline{display:flex;gap:8px;align-items:center}
+.inline>*{flex:1}
+.muted{color:var(--muted)}
+.hint{font-size:.85rem;color:var(--muted);margin-top:6px}
+.out{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0a122a;border:1px dashed #2a376a;padding:12px;border-radius:10px}
+.bad{color:var(--bad)}
+.pill{display:inline-block;padding:.35rem .6rem;border-radius:999px;border:1px solid #2a376a;background:#0a122a;color:var(--muted);font-size:.85rem;margin-right:6px}
+canvas{width:100%;height:120px;display:block;border-radius:10px;background:linear-gradient(180deg,#0b1330,#08102a)}
+footer{margin-top:18px;color:var(--muted);font-size:.85rem}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>⏱️ How long to get there… using <em>ordinary</em> transport?</h1>
+<p class="lead">Type a destination (e.g., “Moon”, “4.3 ly”), pick a transport, set your own speed, or use a % of light speed. Non‑relativistic, straight line, constant speed.</p>
+</header>
+<section class="card">
+<div class="row row-3">
+<div>
+<label for="destination">Destination (text or distance)</label>
+<input id="destination" list="presets" placeholder="e.g., Moon · 384,400 km  — or —  Andromeda · 2.5 million ly" />
+<datalist id="presets"></datalist>
+<div class="hint">Understands units: <span class="pill">km</span><span class="pill">m</span><span class="pill">AU</span><span class="pill">ly</span><span class="pill">pc</span> plus “million/billion”.</div>
+</div>
+<div>
+<label for="mode">Transport mode</label>
+<select id="mode"></select>
+<div class="hint">Typical/average cruising speeds.</div>
+</div>
+<div>
+<label for="customSpeed">Or custom speed</label>
+<div class="inline">
+<input id="customSpeed" type="number" min="0" step="0.1" placeholder="e.g., 1200" />
+<select id="customUnit">
+<option value="kmh">km/h</option>
+<option value="ms">m/s</option>
+<option value="mph">mph</option>
+<option value="kts">knots</option>
+</select>
+</div>
+<div class="hint">If set, overrides the mode’s speed.</div>
+</div>
+</div>
+<div class="row row-2" style="margin-top:12px">
+<div>
+<label for="pctC">Or % of light speed</label>
+<div class="inline">
+<input id="pctC" type="number" min="0" max="99.9999" step="0.001" placeholder="e.g., 0.1" />
+<div class="pill">% c</div>
+</div>
+<div class="hint">When &gt; 0, this overrides everything. Classical (non‑relativistic) math.</div>
+</div>
+<div class="row"></div>
+</div>
+<div class="row" style="margin-top:12px">
+<button id="calc">Calculate</button>
+</div>
+</section>
+<section class="card">
+<label>Result</label>
+<div id="result" class="out">Enter a destination and speed, then press <strong>Calculate</strong>.</div>
+<div id="notes" class="hint" style="margin-top:8px"></div>
+</section>
+<section class="card">
+<label>Scale sketch (log distance)</label>
+<canvas id="viz" width="900" height="160" aria-label="Distance scale visualization"></canvas>
+<div class="hint">Logarithmic scale so both “Moon” and “Andromeda” fit on one line.</div>
+</section>
+<footer>
+<div>Facts vs. opinions:</div>
+<ul>
+<li><strong>Facts (assumptions):</strong> Fixed average speeds and straight-line distances. 1 AU ≈ 149,597,870.7 km; 1 ly ≈ 9.4607×10^12 km; 1 pc ≈ 3.0857×10^13 km; c ≈ 299,792.458 km/s.</li>
+<li><strong>Opinions:</strong> What counts as “conventional” is debatable; historic aircraft included for fun.</li>
+</ul>
+</footer>
+</div>
+<script>
+console.log("Initializing constants...");
+const AU_KM=149597870.7;
+const LY_KM=9.4607e12;
+const PC_KM=3.0857e13;
+const C_KMH=299792.458*3600;
+console.log({AU_KM,LY_KM,PC_KM,C_KMH});
+const PRESETS=[
+["Kármán line (edge of space)",100],
+["Low Earth Orbit rim",2000],
+["International Space Station",420],
+["Geostationary orbit",35786],
+["Moon",384400],
+["Mercury (closest)",77000000],
+["Venus (closest)",38000000],
+["Sun (1 AU)",AU_KM],
+["Mars (closest)",54600000],
+["Mars (average)",225000000],
+["Jupiter (closest)",588000000],
+["Saturn (closest)",1200000000],
+["Uranus (closest)",2600000000],
+["Neptune (closest)",4300000000],
+["Pluto (semi-major axis)",5906000000],
+["Kuiper Belt (inner ~30 AU)",30*AU_KM],
+["Kuiper Belt (outer ~50 AU)",50*AU_KM],
+["Heliopause (~120 AU)",120*AU_KM],
+["Voyager 1 (≈ 24 billion km)",24000000000],
+["Inner Oort Cloud (~2,000 AU)",2000*AU_KM],
+["Betelgeuse (~548 ly)",548*LY_KM],
+["Sagittarius A* (Galactic Center)",26670*LY_KM],
+["Proxima Centauri",4.2465*LY_KM],
+["Alpha Centauri A/B (system)",4.367*LY_KM],
+["Andromeda (M31)",2500000*LY_KM]
+];
+console.log("Loaded presets:",PRESETS);
+const MODES=[
+{name:"Walking (brisk)",speedKmh:5},
+{name:"Bicycle (commuter)",speedKmh:15},
+{name:"Car (highway)",speedKmh:100},
+{name:"Coach/Bus (intercity)",speedKmh:90},
+{name:"High-speed rail",speedKmh:250},
+{name:"Commercial airliner",speedKmh:900},
+{name:"Cruise ship",speedKmh:37},
+{name:"Container ship",speedKmh:41},
+{name:"Concorde (historic)",speedKmh:2179},
+{name:"SR-71 (historic)",speedKmh:3540},
+{name:"Soyuz (LEO orbital)",speedKmh:27600},
+{name:"Space Shuttle (LEO orbital)",speedKmh:28000},
+{name:"Crew Dragon (LEO orbital)",speedKmh:27600},
+{name:"Starship (LEO orbital, est.)",speedKmh:27600},
+{name:"Apollo (translunar coast)",speedKmh:39000},
+{name:"New Horizons (heliocentric)",speedKmh:58500},
+{name:"Voyager 1 (heliocentric)",speedKmh:61200},
+{name:"Parker Solar Probe (record)",speedKmh:635000}
+];
+console.log("Loaded modes:",MODES);
+const dl=document.getElementById('presets');
+PRESETS.forEach(([n])=>{const o=document.createElement('option');o.value=n;dl.appendChild(o)});
+const modeSel=document.getElementById('mode');
+MODES.forEach((m,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${m.name} · ~${fmtNumber(m.speedKmh)} km/h`;modeSel.appendChild(o)});
+modeSel.value=5;
+console.log("UI populated with presets and modes");
+function fmtNumber(n){return Math.abs(n)>=1000?n.toLocaleString(undefined,{maximumFractionDigits:0}):n.toLocaleString(undefined,{maximumFractionDigits:2})}
+function parseDistanceKm(input){
+console.log("Parsing distance from input:",input);
+if(!input)return null;
+let s=String(input).trim().toLowerCase();
+const preset=PRESETS.find(([name])=>name.toLowerCase()===s);
+if(preset)return preset[1];
+const fuzzy=PRESETS.find(([name])=>name.toLowerCase().startsWith(s));
+if(fuzzy)return fuzzy[1];
+s=s.replaceAll(',', ' ');
+s=s.replace(/\s+/g,' ').trim();
+s=s.replace(/million/g,'e6').replace(/billion/g,'e9');
+const m=s.match(/^([\-+]?\d*\.?\d+(?:e[\-+]?\d+)?)(?:\s*)(km|m|au|ly|pc)?$/i);
+if(!m)return null;
+const val=parseFloat(m[1]);
+const unit=(m[2]||'km').toLowerCase();
+switch(unit){
+case 'km':return val;
+case 'm':return val/1000;
+case 'au':return val*AU_KM;
+case 'ly':return val*LY_KM;
+case 'pc':return val*PC_KM;
+default:return null}
+}
+function speedToKmh(value,unit){
+console.log("Converting speed to km/h:",value,unit);
+const v=parseFloat(value);
+if(!(v>=0))return null;
+switch(unit){
+case 'kmh':return v;
+case 'ms':return v*3.6;
+case 'mph':return v*1.609344;
+case 'kts':return v*1.852;
+default:return null}
+}
+function formatDuration(hours){
+console.log("Formatting duration from hours:",hours);
+if(!isFinite(hours))return '—';
+const sTot=Math.round(hours*3600);
+const years=Math.floor(sTot/(365.25*24*3600));
+let rem=sTot-Math.round(years*365.25*24*3600);
+const days=Math.floor(rem/(24*3600));rem-=days*24*3600;
+const hrs=Math.floor(rem/3600);rem-=hrs*3600;
+const mins=Math.floor(rem/60);const secs=rem-mins*60;
+const parts=[];
+if(years)parts.push(`${years} yr`);
+if(days)parts.push(`${days} d`);
+if(hrs)parts.push(`${hrs} h`);
+if(mins)parts.push(`${mins} min`);
+if(secs&&!years&&days<10)parts.push(`${secs} s`);
+return parts.length?parts.join(' · '):'0 s'
+}
+function drawViz(km){
+console.log("Drawing viz for distance (km):",km);
+const cv=document.getElementById('viz');
+const ctx=cv.getContext('2d');
+ctx.clearRect(0,0,cv.width,cv.height);
+for(let i=0;i<120;i++){
+const x=Math.random()*cv.width,y=Math.random()*cv.height;const r=Math.random()*1.3;ctx.fillStyle=`rgba(255,255,255,${0.25+Math.random()*0.6})`;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()} 
+const minKm=10;
+const maxPresetKm=PRESETS.reduce((mx,[_n,d])=>Math.max(mx,d),minKm);
+const maxKm=Math.max(km,maxPresetKm);
+const log=x=>Math.log10(Math.max(x,minKm));
+const denom=log(maxKm)-log(minKm);
+const map=x=>{const t=denom>0?(log(x)-log(minKm))/denom:0;return 40+t*(cv.width-80)};
+ctx.strokeStyle='#2a6bd4';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(40,cv.height/2);ctx.lineTo(cv.width-40,cv.height/2);ctx.stroke();
+ctx.fillStyle='#a9b3cf';ctx.textAlign='center';ctx.font='12px system-ui, sans-serif';
+const ticks=[["100 km",100],["Moon",384400],["Mars (closest)",54600000],["1 AU",AU_KM],["Jupiter",588000000],["Pluto",5906000000],["1 ly",LY_KM]];
+ticks.forEach(([lab,val])=>{const x=map(val);ctx.strokeStyle='#27407a';ctx.beginPath();ctx.moveTo(x,cv.height/2-8);ctx.lineTo(x,cv.height/2+8);ctx.stroke();ctx.fillText(lab,x,cv.height/2+24)});
+const x=map(km);ctx.fillStyle='#53e0c4';ctx.beginPath();ctx.arc(x,cv.height/2,7,0,Math.PI*2);ctx.fill();ctx.font='13px system-ui, sans-serif';ctx.textAlign='left';ctx.fillText('Your dest',Math.min(x+10,cv.width-80),cv.height/2-10)
+}
+document.getElementById('calc').addEventListener('click',()=>{
+console.log("Calculate button clicked");
+const destStr=document.getElementById('destination').value.trim();
+console.log("Destination string:",destStr);
+const km=parseDistanceKm(destStr);
+console.log("Parsed km:",km);
+const result=document.getElementById('result');
+const notes=document.getElementById('notes');
+if(km===null||!(km>0)){
+console.warn("Invalid or non-positive km value");
+result.innerHTML=`<span class="bad">Couldn’t parse the destination.</span> Try a preset name (e.g., “Moon”) or a distance like <code>225 million km</code>, <code>1 AU</code>, <code>4.3 ly</code>.`;
+notes.textContent='';
+drawViz(100);
+return}
+const customVal=document.getElementById('customSpeed').value;
+const customUnit=document.getElementById('customUnit').value;
+const pctCVal=parseFloat(document.getElementById('pctC')?.value||'');
+console.log({customVal,customUnit,pctCVal});
+let speedKmh=null;let speedBy='mode';
+if(pctCVal&&pctCVal>0){speedKmh=pctCVal/100*C_KMH;speedBy='%c'}else if(customVal){speedKmh=speedToKmh(customVal,customUnit);if(speedKmh>0)speedBy='custom'}
+if(!(speedKmh>0)){const mode=MODES[parseInt(modeSel.value,10)]||MODES[0];speedKmh=mode.speedKmh;speedBy='mode'}
+console.log({speedKmh,speedBy});
+const hours=km/speedKmh;
+console.log("Total hours:",hours);
+const prettyTime=formatDuration(hours);
+const modeLabel=speedBy==='%c'?`Light-speed fraction (${pctCVal}% c ≈ ${fmtNumber(speedKmh)} km/h)`:speedBy==='custom'?`Custom speed (${fmtNumber(speedKmh)} km/h)`:MODES[parseInt(modeSel.value,10)].name+` (~${fmtNumber(speedKmh)} km/h)`;
+console.log({prettyTime,modeLabel});
+const numKm=km.toLocaleString(undefined,{maximumFractionDigits:0});
+const au=km/AU_KM;const ly=km/LY_KM;
+result.innerHTML=`
+<div>🧭 Distance: <strong>${numKm} km</strong> (${au.toFixed(6)} AU · ${ly.toFixed(9)} ly)</div>
+<div>🚗 Mode: <strong>${modeLabel}</strong></div>
+<div>⏱️ Time at constant speed: <strong>${prettyTime}</strong></div>`;
+notes.innerHTML=`Assumptions: straight-line path, constant speed, no refueling/maintenance/traffic. Spacecraft entries use typical orbital/heliocentric or record speeds (frame noted), and we still ignore orbital mechanics & relativity. The %c option uses classical arithmetic, not time dilation.`;
+drawViz(km)
+});
+drawViz(100);
+document.getElementById('destination').addEventListener('keydown',e=>{if(e.key==='Enter'){console.log("Enter pressed on destination input");document.getElementById('calc').click()}});
+</script>
+</body>
+</html>
